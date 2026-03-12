@@ -15,6 +15,7 @@ COPY my-app/ .
 # Environment variables for build time
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Generate Prisma client and build
 RUN npx prisma generate
