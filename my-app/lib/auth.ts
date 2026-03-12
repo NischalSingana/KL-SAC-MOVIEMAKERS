@@ -11,17 +11,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
+    authorized({ auth, request: { nextUrl } }) {
+      const isLoggedIn = !!auth?.user;
+      const isRoot = nextUrl.pathname === "/";
+      const isDashboard = nextUrl.pathname.startsWith("/dashboard") || 
+                         nextUrl.pathname.startsWith("/projects") ||
+                         nextUrl.pathname.startsWith("/equipment") ||
+                         nextUrl.pathname.startsWith("/borrow") ||
+                         nextUrl.pathname.startsWith("/calendar");
+
+      if (isDashboard || isRoot) {
+        if (isLoggedIn) return true;
+        return false; // Redirect unauthenticated users to login page
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role?: string }).role ?? "MEMBER";
+        token.role = (user as any).role ?? "MEMBER";
       }
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        (session.user as any).role = token.role as string;
       }
       return session;
     },
