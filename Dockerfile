@@ -3,14 +3,14 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY my-app/package.json my-app/package-lock.json ./
 RUN npm ci --ignore-scripts
 
 # ─── Stage 2: builder ──────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY my-app/ .
 
 # Environment variables for build time
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -43,4 +43,5 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
+
 
