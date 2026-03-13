@@ -1,8 +1,21 @@
-import NextAuth from "next-auth";
+import NextAuth, { type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/db";
 import bcrypt from "bcryptjs";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role: string;
+    } & DefaultSession["user"]
+  }
+
+  interface User {
+    role?: string;
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -22,21 +35,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       if (isDashboard || isRoot) {
         if (isLoggedIn) return true;
-        return false; // Redirect unauthenticated users to login page
+        // Manual redirect to avoid callbackUrl being appended by NextAuth
+        return Response.redirect(new URL("/login", nextUrl));
       }
       return true;
     },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role ?? "MEMBER";
+        token.role = user.role ?? "MEMBER";
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
-        (session.user as any).role = token.role as string;
+        session.user.role = token.role as string;
       }
       return session;
     },
