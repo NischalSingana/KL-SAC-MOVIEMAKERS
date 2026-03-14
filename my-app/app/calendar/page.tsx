@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { EventInput } from "@fullcalendar/core";
+import { EventInput, EventApi } from "@fullcalendar/core";
 import { Loader2, CalendarDays, Ticket, Aperture, Hourglass, BadgeCheck, Zap } from "lucide-react";
+import { format, addDays } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Project {
   id: string; title: string;
@@ -36,6 +38,11 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState({ projects: 0, borrows: 0 });
 
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedEvents, setSelectedEvents] = useState<EventApi[]>([]);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/projects").then(r => r.json()),
@@ -51,11 +58,18 @@ export default function CalendarPage() {
             id: `proj-${pr.id}`,
             title: pr.title,
             start: pr.startDate!,
-            end: pr.endDate || undefined,
+            // FullCalendar treats dates exclusively, so we add 1 day to the end date so it spans correctly visually
+            end: pr.endDate ? format(addDays(new Date(pr.endDate), 1), "yyyy-MM-dd") : undefined,
             backgroundColor: STATUS_COLORS[pr.status] ?? "#E50914",
             borderColor: "transparent",
             url: `/projects/${pr.id}`,
-            extendedProps: { type: "project", status: pr.status, icon: "🎬" },
+            extendedProps: { 
+              type: "project", 
+              status: pr.status, 
+              icon: "🎬",
+              actualStart: pr.startDate,
+              actualEnd: pr.endDate 
+            },
           }));
 
         const bEvents: EventInput[] = b
@@ -64,10 +78,15 @@ export default function CalendarPage() {
             id: `borrow-${bl.id}`,
             title: `${bl.equipment.name} → ${bl.borrowerName}`,
             start: bl.takenAt,
-            end: bl.returnedAt || undefined,
+            end: bl.returnedAt ? format(addDays(new Date(bl.returnedAt), 1), "yyyy-MM-dd") : undefined,
             backgroundColor: "#ef4444",
             borderColor: "transparent",
-            extendedProps: { type: "borrow", icon: "📷" },
+            extendedProps: { 
+              type: "borrow", 
+              icon: "📷",
+              actualStart: bl.takenAt,
+              actualEnd: bl.returnedAt
+            },
           }));
 
         setEvents([...pEvents, ...bEvents]);
@@ -139,7 +158,13 @@ export default function CalendarPage() {
               height="auto"
               aspectRatio={1.8}
               dayMaxEvents={3}
-              moreLinkContent={args => `+${args.num} more`}
+              moreLinkContent={() => `View all`}
+              moreLinkClick={(info) => {
+                setSelectedDate(info.date);
+                setSelectedEvents(info.allSegs.map(seg => seg.event));
+                setIsModalOpen(true);
+                return "prevent"; 
+              }}
               eventClick={(info) => {
                 if (info.event.url) {
                   info.jsEvent.preventDefault();
@@ -173,6 +198,46 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-[#121212] border border-slate-800 text-slate-100">
+          <DialogHeader className="border-b border-slate-800 pb-4 mb-2">
+            <DialogTitle className="text-xl font-bold flex flex-col gap-1">
+              Events on {selectedDate ? format(selectedDate, "MMMM d, yyyy") : ""}
+              <span className="text-xs font-normal text-slate-400">Review project and equipment logistics</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-1">
+            {selectedEvents.map((event, idx) => (
+              <div 
+                key={idx} 
+                className="flex items-start gap-3 p-3 rounded-lg border border-slate-800/60 bg-[#1A1A1A] hover:bg-[#222] transition-colors cursor-pointer"
+                onClick={() => {
+                  if (event.url) window.location.href = event.url;
+                }}
+              >
+                <div 
+                  className="w-1.5 h-full rounded-full self-stretch flex-shrink-0" 
+                  style={{ backgroundColor: event.backgroundColor }} 
+                />
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-semibold text-sm truncate">{event.title}</h4>
+                  <div className="flex flex-col gap-1 mt-1.5 text-xs text-slate-400">
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5 opacity-70"/> 
+                      Start: {event.extendedProps.actualStart ? format(new Date(event.extendedProps.actualStart), "MMM d, yyyy") : "N/A"}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Hourglass className="w-3.5 h-3.5 opacity-70"/> 
+                      Finish: {event.extendedProps.actualEnd ? format(new Date(event.extendedProps.actualEnd), "MMM d, yyyy") : "N/A"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── FullCalendar dark override styles ── */}
       <style>{`
@@ -218,16 +283,11 @@ export default function CalendarPage() {
         }
         .dark-calendar .fc .fc-daygrid-day:hover { background: rgba(255,255,255,0.02) !important; }
         .dark-calendar .fc .fc-more-link {
-          color: #475569; font-size: 10px; font-weight: 700;
+          color: #475569; font-size: 10.5px; font-weight: 700; background: #1f0708; padding: 2px 6px; border-radius: 4px; border: 1px solid #7f1d1d;
         }
-        .dark-calendar .fc .fc-more-link:hover { color: #FF6B6B; }
+        .dark-calendar .fc .fc-more-link:hover { color: #FF6B6B; border-color: #E50914;}
         .dark-calendar .fc-theme-standard .fc-popover {
-          background: #1A1A1A; border: 1px solid #2A2A2A;
-          border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.5);
-        }
-        .dark-calendar .fc-theme-standard .fc-popover-header {
-          background: #121212; color: #94a3b8; font-size: 12px; font-weight: 700;
-          padding: 8px 12px; border-bottom: 1px solid #2A2A2A; border-radius: 10px 10px 0 0;
+          display: none; /* We handle it via custom modal */
         }
         .dark-calendar .fc .fc-event,
         .dark-calendar .fc .fc-daygrid-event {
