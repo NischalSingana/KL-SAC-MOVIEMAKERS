@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { History, ListPlus, Phone, UserCircle, X, Loader2, BadgeCheck, AlertCircle, RotateCcw, Search, Aperture } from "lucide-react";
+import { History, ListPlus, Phone, UserCircle, X, Loader2, BadgeCheck, AlertCircle, RotateCcw, Search, Aperture, Minus, Plus } from "lucide-react";
 
-interface Equipment { id: string; name: string; model: string; status: "AVAILABLE" | "BORROWED"; }
+interface Equipment { 
+  id: string; 
+  name: string; 
+  model: string; 
+  status: "AVAILABLE" | "BORROWED"; 
+  quantity: number;
+  borrowLogs: { status: string; returnedAt: string | null }[];
+}
+
 interface BorrowLog {
   id: string;
   equipment: { id: string; name: string; model: string };
@@ -26,6 +34,12 @@ const iStyle: React.CSSProperties = {
 };
 const lStyle: React.CSSProperties = { display: "block", fontSize: 12, fontWeight: 600, color: "#94a3b8", marginBottom: 6 };
 
+// Helper to calculate available units
+const getAvailableCount = (e: Equipment) => {
+  const activeCount = e.borrowLogs?.filter(l => !l.returnedAt).length || 0;
+  return e.quantity - activeCount;
+};
+
 export default function BorrowPage() {
   const [logs, setLogs]         = useState<BorrowLog[]>([]);
   const [equipment, setEq]      = useState<Equipment[]>([]);
@@ -36,17 +50,35 @@ export default function BorrowPage() {
   const [busy, setBusy]         = useState(false);
   const [eqSearch, setEqSearch] = useState("");
 
-  const [form, setForm]         = useState<{ equipmentIds: string[], borrowerName: string, studentId: string, phone: string, takenAt: string }>({ 
-    equipmentIds: [], borrowerName: "", studentId: "", phone: "", takenAt: "" 
+  const [form, setForm]         = useState<{ 
+    borrowItems: { id: string, quantity: number }[],
+    borrowerName: string, 
+    studentId: string, 
+    phone: string, 
+    takenAt: string 
+  }>({ 
+    borrowItems: [], borrowerName: "", studentId: "", phone: "", takenAt: "" 
   });
 
-  const set = (f: string, v: string | string[]) => setForm(p => ({ ...p, [f]: v }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const setSlice = (f: string, v: any) => setForm(p => ({ ...p, [f]: v }));
 
-  const toggleEq = (id: string) => {
+  const toggleEq = (e: Equipment) => {
     setForm(p => {
-      const ids = p.equipmentIds.includes(id) ? p.equipmentIds.filter(i => i !== id) : [...p.equipmentIds, id];
-      return { ...p, equipmentIds: ids };
+      const exists = p.borrowItems.find(i => i.id === e.id);
+      if (exists) {
+        return { ...p, borrowItems: p.borrowItems.filter(i => i.id !== e.id) };
+      } else {
+        return { ...p, borrowItems: [...p.borrowItems, { id: e.id, quantity: 1 }] };
+      }
     });
+  };
+
+  const updateItemQty = (id: string, qty: number) => {
+    setForm(p => ({
+      ...p,
+      borrowItems: p.borrowItems.map(i => i.id === id ? { ...i, quantity: qty } : i)
+    }));
   };
 
   const load = useCallback(async () => {
@@ -60,14 +92,28 @@ export default function BorrowPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.equipmentIds.length === 0 || !form.borrowerName || !form.studentId || !form.phone || !form.takenAt) { setErr("Please complete all fields and select at least one item."); return; }
+    if (form.borrowItems.length === 0 || !form.borrowerName || !form.studentId || !form.phone || !form.takenAt) { 
+      setErr("Please complete all fields and select at least one item."); 
+      return; 
+    }
     setBusy(true); setErr("");
     try {
-      const res = await fetch("/api/borrow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const payload = {
+        items: form.borrowItems,
+        borrowerName: form.borrowerName,
+        studentId: form.studentId,
+        phone: form.phone,
+        takenAt: form.takenAt
+      };
+      const res = await fetch("/api/borrow", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+      });
       const data = await res.json();
       if (!res.ok) { setErr(data.error || "Failed"); return; }
       setModal(false);
-      setForm({ equipmentIds: [], borrowerName: "", studentId: "", phone: "", takenAt: "" });
+      setForm({ borrowItems: [], borrowerName: "", studentId: "", phone: "", takenAt: "" });
       setEqSearch("");
       await load();
     } catch { setErr("Unexpected error."); }
@@ -83,8 +129,8 @@ export default function BorrowPage() {
   const active    = logs.filter(l => l.status === "BORROWED").length;
   const returned  = logs.filter(l => l.status === "RETURNED").length;
   
-  const availableEq = useMemo(() => {
-    const avail = equipment.filter(e => e.status === "AVAILABLE");
+  const availableEqList = useMemo(() => {
+    const avail = equipment.filter(e => getAvailableCount(e) > 0);
     if (!eqSearch) return avail;
     const s = eqSearch.toLowerCase();
     return avail.filter(e => e.name.toLowerCase().includes(s) || e.model.toLowerCase().includes(s));
@@ -221,7 +267,7 @@ export default function BorrowPage() {
       {modal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.75)", backdropFilter: "blur(4px)" }} onClick={() => setModal(false)} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 480, background: "#121212", border: "1px solid #2A2A2A", borderRadius: 16, boxShadow: "0 24px 64px rgba(0,0,0,.8)", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: 520, background: "#121212", border: "1px solid #2A2A2A", borderRadius: 16, boxShadow: "0 24px 64px rgba(0,0,0,.8)", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
             
             {/* Modal header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid #1A1A1A", flexShrink: 0 }}>
@@ -231,7 +277,7 @@ export default function BorrowPage() {
                 </div>
                 <div>
                   <p style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9" }}>Log Equipment Borrow</p>
-                  <p style={{ fontSize: 12, color: "#64748b", marginTop: 1 }}>Assign gear to a student</p>
+                  <p style={{ fontSize: 12, color: "#64748b", marginTop: 1 }}>Assign equipment to a student</p>
                 </div>
               </div>
               <button onClick={() => setModal(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", padding: 4 }}>
@@ -248,7 +294,7 @@ export default function BorrowPage() {
 
               {/* Multi-Select Field */}
               <div>
-                <label style={lStyle}>Available Equipment (<span style={{color: "#60a5fa"}}>{form.equipmentIds.length}</span> selected) *</label>
+                <label style={lStyle}>Available Equipment (<span style={{color: "#3b82f6"}}>{form.borrowItems.length}</span> selected) *</label>
                 
                 <div style={{ border: "1px solid #2A2A2A", borderRadius: 12, background: "#0A0A0A", overflow: "hidden" }}>
                   <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderBottom: "1px solid #1A1A1A", background: "#121212" }}>
@@ -262,27 +308,62 @@ export default function BorrowPage() {
                     />
                   </div>
                   
-                  <div style={{ maxHeight: 180, overflowY: "auto", padding: 6 }}>
-                    {availableEq.length === 0 ? (
+                  <div style={{ maxHeight: 220, overflowY: "auto", padding: 6 }}>
+                    {availableEqList.length === 0 ? (
                       <p style={{ padding: "16px", textAlign: "center", fontSize: 12, color: "#475569" }}>No available equipment found</p>
                     ) : (
-                      availableEq.map(e => {
-                        const checked = form.equipmentIds.includes(e.id);
+                      availableEqList.map(e => {
+                        const selectedItem = form.borrowItems.find(i => i.id === e.id);
+                        const checked = !!selectedItem;
+                        const avail = getAvailableCount(e);
+                        
                         return (
-                          <label key={e.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: checked ? "#1A1A1A" : "transparent", transition: "all 0.1s" }} onMouseEnter={e => {if(!checked) e.currentTarget.style.background = "#121212"}} onMouseLeave={e => {if(!checked) e.currentTarget.style.background = "transparent"}}>
-                            <div style={{ width: 18, height: 18, borderRadius: 4, border: `1px solid ${checked ? "#60a5fa" : "#333333"}`, background: checked ? "#1e3a5f" : "#0A0A0A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {checked && <BadgeCheck style={{ width: 12, height: 12, color: "#60a5fa" }} />}
+                          <div key={e.id} style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 4 }}>
+                            <div 
+                              onClick={() => toggleEq(e)}
+                              style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 8, cursor: "pointer", background: checked ? "#1A1A1A" : "transparent", transition: "all 0.1s", border: checked ? "1px solid #2563eb33" : "1px solid transparent" }} 
+                              onMouseEnter={el => {if(!checked) el.currentTarget.style.background = "#121212"}} 
+                              onMouseLeave={el => {if(!checked) el.currentTarget.style.background = "transparent"}}
+                            >
+                              <div style={{ width: 18, height: 18, borderRadius: 4, border: `1px solid ${checked ? "#3b82f6" : "#333333"}`, background: checked ? "#1d4ed8" : "#0A0A0A", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                {checked && <BadgeCheck style={{ width: 12, height: 12, color: "#fff" }} />}
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                                <span style={{ fontSize: 13, fontWeight: checked ? 700 : 500, color: checked ? "#f1f5f9" : "#e2e8f0" }}>{e.name}</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                                  <span style={{ fontSize: 11, color: "#64748b" }}>{e.model}</span>
+                                  <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#1A1A1A", color: "#94a3b8", border: "1px solid #2A2A2A" }}>{avail} available</span>
+                                </div>
+                              </div>
+                              <div style={{ width: 28, height: 28, borderRadius: 8, background: "#121212", border: "1px solid #1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                <Aperture style={{ width: 14, height: 14, color: "#475569" }} />
+                              </div>
                             </div>
-                            <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                              <span style={{ fontSize: 13, fontWeight: checked ? 700 : 500, color: checked ? "#f1f5f9" : "#e2e8f0" }}>{e.name}</span>
-                              <span style={{ fontSize: 11, color: "#64748b" }}>{e.model}</span>
-                            </div>
-                            <div style={{ width: 24, height: 24, borderRadius: 6, background: "#121212", border: "1px solid #1A1A1A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <Aperture style={{ width: 12, height: 12, color: "#475569" }} />
-                            </div>
-                            {/* Hidden actual checkbox */}
-                            <input type="checkbox" checked={checked} onChange={() => toggleEq(e.id)} style={{ display: "none" }} />
-                          </label>
+                            
+                            {/* Quantity Selector for selected item */}
+                            {checked && avail > 1 && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingLeft: 42, paddingBottom: 8, paddingTop: 4, borderBottom: "1px solid #1A1A1A", marginBottom: 4 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase" }}>Quantity:</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0A0A0A", border: "1px solid #2A2A2A", borderRadius: 8, padding: "4px 8px" }}>
+                                  <button 
+                                    type="button" 
+                                    onClick={(el) => { el.stopPropagation(); updateItemQty(e.id, Math.max(1, selectedItem.quantity - 1)); }}
+                                    style={{ color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                  >
+                                    <Minus style={{ width: 12, height: 12 }} />
+                                  </button>
+                                  <span style={{ fontSize: 13, fontWeight: 800, color: "#f1f5f9", minWidth: 16, textAlign: "center" }}>{selectedItem.quantity}</span>
+                                  <button 
+                                    type="button" 
+                                    onClick={(el) => { el.stopPropagation(); updateItemQty(e.id, Math.min(avail, selectedItem.quantity + 1)); }}
+                                    style={{ color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                  >
+                                    <Plus style={{ width: 12, height: 12 }} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )
                       })
                     )}
@@ -292,23 +373,23 @@ export default function BorrowPage() {
 
               <div>
                 <label style={lStyle}>Borrower Name *</label>
-                <input type="text" placeholder="Full name" value={form.borrowerName} onChange={e => set("borrowerName", e.target.value)} required style={iStyle} />
+                <input type="text" placeholder="Full name" value={form.borrowerName} onChange={e => setSlice("borrowerName", e.target.value)} required style={iStyle} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lStyle}>Student ID *</label>
-                  <input type="text" placeholder="e.g. 2200090123" value={form.studentId} onChange={e => set("studentId", e.target.value)} required style={iStyle} />
+                  <input type="text" placeholder="e.g. 2200090123" value={form.studentId} onChange={e => setSlice("studentId", e.target.value)} required style={iStyle} />
                 </div>
                 <div>
                   <label style={lStyle}>Phone *</label>
-                  <input type="tel" placeholder="10-digit number" value={form.phone} onChange={e => set("phone", e.target.value.replace(/\D/g, '').slice(0, 10))} maxLength={10} required style={iStyle} />
+                  <input type="tel" placeholder="10-digit number" value={form.phone} onChange={e => setSlice("phone", e.target.value.replace(/\D/g, '').slice(0, 10))} maxLength={10} required style={iStyle} />
                 </div>
               </div>
 
               <div>
                 <label style={lStyle}>Taken Date & Time *</label>
-                <input type="datetime-local" value={form.takenAt} onChange={e => set("takenAt", e.target.value)} required style={{ ...iStyle, colorScheme: "dark", padding: "10px 12px" }} />
+                <input type="datetime-local" value={form.takenAt} onChange={e => setSlice("takenAt", e.target.value)} required style={{ ...iStyle, colorScheme: "dark", padding: "10px 12px" }} />
               </div>
 
               <div style={{ display: "flex", gap: 12, paddingTop: 10, marginTop: 4, borderTop: "1px solid #1A1A1A" }}>

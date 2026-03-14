@@ -8,19 +8,11 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, model, serialNumber, condition, notes, status } = body;
+    const { name, model, status, quantity } = body;
 
     const existing = await prisma.equipment.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ error: "Equipment not found" }, { status: 404 });
-    }
-
-    // If serialNumber is being changed, check for uniqueness
-    if (serialNumber && serialNumber !== existing.serialNumber) {
-      const conflict = await prisma.equipment.findUnique({ where: { serialNumber } });
-      if (conflict) {
-        return NextResponse.json({ error: "Serial number already in use" }, { status: 409 });
-      }
     }
 
     const updated = await prisma.equipment.update({
@@ -28,10 +20,8 @@ export async function PATCH(
       data: {
         ...(name && { name }),
         ...(model && { model }),
-        ...(serialNumber && { serialNumber }),
-        ...(condition && { condition }),
-        ...(notes !== undefined && { notes }),
         ...(status && { status }),
+        ...(quantity !== undefined && { quantity: Number(quantity) }),
       },
     });
 

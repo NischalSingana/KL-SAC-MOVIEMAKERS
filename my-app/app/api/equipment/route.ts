@@ -9,7 +9,6 @@ export async function GET() {
         borrowLogs: {
           where: { status: "BORROWED", returnedAt: null },
           orderBy: { takenAt: "desc" },
-          take: 1,
           select: { borrowerName: true, studentId: true, phone: true, takenAt: true },
         },
       },
@@ -24,26 +23,22 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, model, serialNumber, condition, notes } = body;
+    const { name, model, serialNumber, notes, quantity } = body;
 
-    if (!name || !model || !serialNumber) {
-      return NextResponse.json({ error: "name, model, and serialNumber are required" }, { status: 400 });
-    }
-
-    const existing = await prisma.equipment.findUnique({ where: { serialNumber } });
-    if (existing) {
-      return NextResponse.json({ error: "An equipment with this serial number already exists" }, { status: 409 });
+    if (!name || !model) {
+      return NextResponse.json({ error: "name and model are required" }, { status: 400 });
     }
 
     const item = await prisma.equipment.create({
       data: {
         name,
         model,
-        serialNumber,
-        condition: condition || "GOOD",
+        serialNumber: serialNumber || null,
         notes,
+        quantity: parseInt(quantity) || 1,
         status: "AVAILABLE",
-      },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
     });
     return NextResponse.json(item, { status: 201 });
   } catch (e) {
