@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { History, ListPlus, Phone, UserCircle, X, Loader2, BadgeCheck, AlertCircle, RotateCcw } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { History, ListPlus, Phone, UserCircle, X, Loader2, BadgeCheck, AlertCircle, RotateCcw, Search, Aperture } from "lucide-react";
 
 interface Equipment { id: string; name: string; model: string; status: "AVAILABLE" | "BORROWED"; }
 interface BorrowLog {
@@ -34,9 +34,20 @@ export default function BorrowPage() {
   const [returning, setReturning] = useState<string | null>(null);
   const [err, setErr]           = useState("");
   const [busy, setBusy]         = useState(false);
-  const [form, setForm]         = useState({ equipmentId: "", borrowerName: "", studentId: "", phone: "", takenAt: "" });
+  const [eqSearch, setEqSearch] = useState("");
 
-  const set = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }));
+  const [form, setForm]         = useState<{ equipmentIds: string[], borrowerName: string, studentId: string, phone: string, takenAt: string }>({ 
+    equipmentIds: [], borrowerName: "", studentId: "", phone: "", takenAt: "" 
+  });
+
+  const set = (f: string, v: string | string[]) => setForm(p => ({ ...p, [f]: v }));
+
+  const toggleEq = (id: string) => {
+    setForm(p => {
+      const ids = p.equipmentIds.includes(id) ? p.equipmentIds.filter(i => i !== id) : [...p.equipmentIds, id];
+      return { ...p, equipmentIds: ids };
+    });
+  };
 
   const load = useCallback(async () => {
     const [lo, eq] = await Promise.all([fetch("/api/borrow").then(r => r.json()), fetch("/api/equipment").then(r => r.json())]);
@@ -49,14 +60,15 @@ export default function BorrowPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.equipmentId || !form.borrowerName || !form.studentId || !form.phone || !form.takenAt) { setErr("All fields are required."); return; }
+    if (form.equipmentIds.length === 0 || !form.borrowerName || !form.studentId || !form.phone || !form.takenAt) { setErr("Please complete all fields and select at least one item."); return; }
     setBusy(true); setErr("");
     try {
       const res = await fetch("/api/borrow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setErr(data.error || "Failed"); return; }
       setModal(false);
-      setForm({ equipmentId: "", borrowerName: "", studentId: "", phone: "", takenAt: "" });
+      setForm({ equipmentIds: [], borrowerName: "", studentId: "", phone: "", takenAt: "" });
+      setEqSearch("");
       await load();
     } catch { setErr("Unexpected error."); }
     finally { setBusy(false); }
@@ -70,7 +82,13 @@ export default function BorrowPage() {
 
   const active    = logs.filter(l => l.status === "BORROWED").length;
   const returned  = logs.filter(l => l.status === "RETURNED").length;
-  const available = equipment.filter(e => e.status === "AVAILABLE");
+  
+  const availableEq = useMemo(() => {
+    const avail = equipment.filter(e => e.status === "AVAILABLE");
+    if (!eqSearch) return avail;
+    const s = eqSearch.toLowerCase();
+    return avail.filter(e => e.name.toLowerCase().includes(s) || e.model.toLowerCase().includes(s));
+  }, [equipment, eqSearch]);
 
   return (
     <div style={{ maxWidth: 1320 }}>
@@ -201,38 +219,75 @@ export default function BorrowPage() {
 
       {/* ── Borrow Modal ── */}
       {modal && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.7)", backdropFilter: "blur(8px)" }} onClick={() => setModal(false)} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 440, background: "#121212", border: "1px solid #2A2A2A", borderRadius: 16, boxShadow: "0 24px 64px rgba(0,0,0,.6)" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.75)", backdropFilter: "blur(4px)" }} onClick={() => setModal(false)} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 480, background: "#121212", border: "1px solid #2A2A2A", borderRadius: 16, boxShadow: "0 24px 64px rgba(0,0,0,.8)", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
+            
             {/* Modal header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #2A2A2A" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 8, background: "#261F06", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <History style={{ width: 14, height: 14, color: "#FF6B6B" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid #1A1A1A", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "#1f0708", border: "1px solid #7f1d1d", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <History style={{ width: 16, height: 16, color: "#f87171" }} />
                 </div>
-                <p style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9" }}>Log Equipment Borrow</p>
+                <div>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9" }}>Log Equipment Borrow</p>
+                  <p style={{ fontSize: 12, color: "#64748b", marginTop: 1 }}>Assign gear to a student</p>
+                </div>
               </div>
-              <button onClick={() => setModal(false)} style={{ width: 28, height: 28, borderRadius: 8, background: "#1A1A1A", border: "1px solid #2A2A2A", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <X style={{ width: 14, height: 14, color: "#64748b" }} />
+              <button onClick={() => setModal(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", padding: 4 }}>
+                <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
 
-            <form onSubmit={submit} style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+            <form onSubmit={submit} style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto" }}>
               {err && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#1f0708", border: "1px solid #7f1d1d", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#f87171" }}>
-                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0 }} /> {err}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#1f0708", border: "1px solid #7f1d1d", borderRadius: 10, padding: "12px 14px", fontSize: 12, color: "#f87171" }}>
+                  <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} /> {err}
                 </div>
               )}
 
+              {/* Multi-Select Field */}
               <div>
-                <label style={lStyle}>Equipment *</label>
-                <select value={form.equipmentId} onChange={e => set("equipmentId", e.target.value)} required
-                  style={{ ...iStyle, appearance: "none" }}>
-                  <option value="">Select equipment…</option>
-                  {available.length === 0 ? <option disabled>No equipment available</option> : available.map(e => (
-                    <option key={e.id} value={e.id}>{e.name} — {e.model}</option>
-                  ))}
-                </select>
+                <label style={lStyle}>Available Equipment (<span style={{color: "#60a5fa"}}>{form.equipmentIds.length}</span> selected) *</label>
+                
+                <div style={{ border: "1px solid #2A2A2A", borderRadius: 12, background: "#0A0A0A", overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderBottom: "1px solid #1A1A1A", background: "#121212" }}>
+                    <Search style={{ width: 14, height: 14, color: "#64748b", flexShrink: 0 }} />
+                    <input 
+                      type="text" 
+                      placeholder="Search equipment..." 
+                      value={eqSearch} 
+                      onChange={e => setEqSearch(e.target.value)}
+                      style={{ background: "transparent", border: "none", outline: "none", color: "#f1f5f9", fontSize: 13, width: "100%", marginLeft: 10 }}
+                    />
+                  </div>
+                  
+                  <div style={{ maxHeight: 180, overflowY: "auto", padding: 6 }}>
+                    {availableEq.length === 0 ? (
+                      <p style={{ padding: "16px", textAlign: "center", fontSize: 12, color: "#475569" }}>No available equipment found</p>
+                    ) : (
+                      availableEq.map(e => {
+                        const checked = form.equipmentIds.includes(e.id);
+                        return (
+                          <label key={e.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: checked ? "#1A1A1A" : "transparent", transition: "all 0.1s" }} onMouseEnter={e => {if(!checked) e.currentTarget.style.background = "#121212"}} onMouseLeave={e => {if(!checked) e.currentTarget.style.background = "transparent"}}>
+                            <div style={{ width: 18, height: 18, borderRadius: 4, border: `1px solid ${checked ? "#60a5fa" : "#333333"}`, background: checked ? "#1e3a5f" : "#0A0A0A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {checked && <BadgeCheck style={{ width: 12, height: 12, color: "#60a5fa" }} />}
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                              <span style={{ fontSize: 13, fontWeight: checked ? 700 : 500, color: checked ? "#f1f5f9" : "#e2e8f0" }}>{e.name}</span>
+                              <span style={{ fontSize: 11, color: "#64748b" }}>{e.model}</span>
+                            </div>
+                            <div style={{ width: 24, height: 24, borderRadius: 6, background: "#121212", border: "1px solid #1A1A1A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <Aperture style={{ width: 12, height: 12, color: "#475569" }} />
+                            </div>
+                            {/* Hidden actual checkbox */}
+                            <input type="checkbox" checked={checked} onChange={() => toggleEq(e.id)} style={{ display: "none" }} />
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -253,17 +308,17 @@ export default function BorrowPage() {
 
               <div>
                 <label style={lStyle}>Taken Date & Time *</label>
-                <input type="datetime-local" value={form.takenAt} onChange={e => set("takenAt", e.target.value)} required style={{ ...iStyle, colorScheme: "dark" }} />
+                <input type="datetime-local" value={form.takenAt} onChange={e => set("takenAt", e.target.value)} required style={{ ...iStyle, colorScheme: "dark", padding: "10px 12px" }} />
               </div>
 
-              <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
+              <div style={{ display: "flex", gap: 12, paddingTop: 10, marginTop: 4, borderTop: "1px solid #1A1A1A" }}>
                 <button type="button" onClick={() => setModal(false)}
-                  style={{ flex: 1, padding: "10px", background: "#1A1A1A", border: "1px solid #2A2A2A", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#64748b", cursor: "pointer" }}>
+                  style={{ flex: 1, padding: "12px", background: "#1A1A1A", border: "1px solid #2A2A2A", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#94a3b8", cursor: "pointer" }}>
                   Cancel
                 </button>
                 <button type="submit" disabled={busy}
-                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", background: "#E50914", border: "1px solid #B20710", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", opacity: busy ? 0.7 : 1 }}>
-                  {busy ? <><Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> Logging…</> : "Log Borrow"}
+                  style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", background: "#E50914", border: "1px solid #B20710", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", opacity: busy ? 0.7 : 1 }}>
+                  {busy ? <><Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> Logging Borrow…</> : "Confirm Borrow"}
                 </button>
               </div>
             </form>
