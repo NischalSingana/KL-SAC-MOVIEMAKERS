@@ -1,15 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { PrismaClient } = require("@prisma/client");
-// eslint-disable-next-line @typescript-eslint/no-require-imports  
-const { PrismaNeon } = require("@prisma/adapter-neon");
+import { PrismaClient } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
-type PrismaClientType = InstanceType<typeof PrismaClient>;
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClientType | undefined;
-};
-
-function createPrismaClient(): PrismaClientType {
+const prismaClientSingleton = () => {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
@@ -20,13 +12,19 @@ function createPrismaClient(): PrismaClientType {
     });
   }
 
-  // For local dev without a real DB — will fail on actual DB queries
-  return new PrismaClient({ log: ["error"] });
-}
+  return new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
+};
 
-export const prisma: PrismaClientType =
-  globalForPrisma.prisma ?? createPrismaClient();
+type PrismaClientSingleton = ReturnType<typeof prismaClientSingleton>;
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClientSingleton | undefined;
+};
+
+export const prisma = globalForPrisma.prisma ?? prismaClientSingleton();
 
 export default prisma;
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

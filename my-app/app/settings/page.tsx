@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { UserCircle, KeyRound, BellRing, Paintbrush, Fingerprint, ChevronRight, Sparkles, X, Loader2, AlertCircle, CheckCircle2, Sun, Moon, Monitor, Shield, Users, Eye } from "lucide-react";
+import { UserCircle, KeyRound, BellRing, ChevronRight, Sparkles, X, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
 export default function SettingsPage() {
@@ -24,30 +24,57 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  // Notifications preferences (stored locally)
+  // Notifications preferences
   const [notifPrefs, setNotifPrefs] = useState({
-    borrowAlerts:  true,
-    projectAlerts: true,
-    systemAlerts:  true,
-    emailDigest:   false,
+    // @ts-expect-error: Prisma client type mismatch
+    borrowAlerts:  session?.user?.borrowAlerts ?? true,
+    // @ts-expect-error: Prisma client type mismatch
+    projectAlerts: session?.user?.projectAlerts ?? true,
   });
 
-  // Appearance
-  const [appearance, setAppearance] = useState<"dark" | "light" | "system">("dark");
+  const handleUpdateNotifications = async () => {
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          action: "updateNotifications", 
+          borrowAlerts: notifPrefs.borrowAlerts, 
+          projectAlerts: notifPrefs.projectAlerts 
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      await updateSession({ 
+        borrowAlerts: notifPrefs.borrowAlerts, 
+        projectAlerts: notifPrefs.projectAlerts 
+      });
+      
+      setSuccess("Preferences saved!");
+      setTimeout(() => clearModal(), 1200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update preferences");
+    } finally { setLoading(false); }
+  };
 
   const SECTIONS = [
     { id: "profile",       icon: UserCircle,  color: "#E50914", bg: "#1A0305", border: "#3a0a10", title: "Profile",             desc: "Your name, email, and account details" },
     { id: "password",      icon: KeyRound,    color: "#60a5fa", bg: "#0c1a2e", border: "#1e3a5f", title: "Password & Security", desc: "Change your password and manage security" },
     { id: "notifications", icon: BellRing,    color: "#fbbf24", bg: "#1c1100", border: "#78350f", title: "Notifications",       desc: "Control what alerts you receive" },
-    { id: "appearance",    icon: Paintbrush,  color: "#a78bfa", bg: "#1e1b4b", border: "#4c1d95", title: "Appearance",          desc: "Customize the look and feel" },
-    { id: "permissions",   icon: Fingerprint, color: "#34d399", bg: "#022c22", border: "#065f46", title: "Permissions",         desc: "Manage access and role settings" },
   ];
 
   const handleOpen = (id: string) => {
     setError(""); setSuccess("");
     if (id === "profile") setNewName(name);
-    if (id === "password") { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); }
+    if (id === "password") { 
+      setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); 
+      setShowCurrent(false); setShowNew(false); setShowConfirm(false);
+    }
     setActiveModal(id);
   };
 
@@ -225,17 +252,72 @@ export default function SettingsPage() {
                 <div style={{ padding: "10px 14px", background: "#0c1a2e", border: "1px solid #1e3a5f", borderRadius: 10, color: "#60a5fa", fontSize: 11, lineHeight: 1.5 }}>
                   You will be signed out after changing your password for security.
                 </div>
+
+                {/* Current Password */}
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6 }}>Current Password</label>
-                  <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required style={inputStyle} placeholder="Enter current password" />
+                  <div style={{ position: "relative" }}>
+                    <input 
+                      type={showCurrent ? "text" : "password"} 
+                      value={currentPassword} 
+                      onChange={e => setCurrentPassword(e.target.value)} 
+                      required 
+                      style={{ ...inputStyle, paddingRight: 40 }} 
+                      placeholder="Enter current password" 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowCurrent(!showCurrent)}
+                      style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", padding: 4 }}
+                    >
+                      {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
+
+                {/* New Password */}
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6 }}>New Password</label>
-                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={6} style={inputStyle} placeholder="Min. 6 characters" />
+                  <div style={{ position: "relative" }}>
+                    <input 
+                      type={showNew ? "text" : "password"} 
+                      value={newPassword} 
+                      onChange={e => setNewPassword(e.target.value)} 
+                      required 
+                      minLength={6} 
+                      style={{ ...inputStyle, paddingRight: 40 }} 
+                      placeholder="Min. 6 characters" 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowNew(!showNew)}
+                      style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", padding: 4 }}
+                    >
+                      {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Confirm Password */}
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6 }}>Confirm New Password</label>
-                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required style={inputStyle} placeholder="Repeat new password" />
+                  <div style={{ position: "relative" }}>
+                    <input 
+                      type={showConfirm ? "text" : "password"} 
+                      value={confirmPassword} 
+                      onChange={e => setConfirmPassword(e.target.value)} 
+                      required 
+                      style={{ ...inputStyle, paddingRight: 40 }} 
+                      placeholder="Repeat new password" 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowConfirm(!showConfirm)}
+                      style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", padding: 4 }}
+                    >
+                      {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                   <button type="button" onClick={clearModal} style={{ flex: 1, padding: "10px 0", background: "#1A1A1A", border: "1px solid #2A2A2A", borderRadius: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
@@ -249,12 +331,12 @@ export default function SettingsPage() {
             {/* ── Notifications Modal ── */}
             {activeModal === "notifications" && (
               <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+                {error   && <div style={{ padding: "10px 12px", background: "#1f0708", border: "1px solid #7f1d1d", borderRadius: 8, color: "#f87171", fontSize: 12, display: "flex", gap: 8, alignItems: "center" }}><AlertCircle style={{ width: 14, height: 14, flexShrink: 0 }}/>{error}</div>}
+                {success && <div style={{ padding: "10px 12px", background: "#022c22", border: "1px solid #065f46", borderRadius: 8, color: "#34d399", fontSize: 12, display: "flex", gap: 8, alignItems: "center" }}><CheckCircle2 style={{ width: 14, height: 14, flexShrink: 0 }}/>{success}</div>}
                 <p style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>Choose which notifications you want to receive in real-time inside the app.</p>
                 {[
                   { key: "borrowAlerts",  label: "Borrow Alerts",   desc: "When equipment is borrowed or returned" },
                   { key: "projectAlerts", label: "Project Updates",  desc: "New projects, deadlines, and status changes" },
-                  { key: "systemAlerts",  label: "System Alerts",   desc: "Security events and important system notices" },
-                  { key: "emailDigest",   label: "Email Digest",    desc: "Daily summary email (coming soon)" },
                 ].map(item => {
                   const key = item.key as keyof typeof notifPrefs;
                   return (
@@ -281,85 +363,12 @@ export default function SettingsPage() {
                     </div>
                   );
                 })}
-                <button onClick={clearModal} style={{ marginTop: 4, padding: "10px 0", background: "#E50914", border: "1px solid #B20710", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  Save Preferences
-                </button>
-              </div>
-            )}
-
-            {/* ── Appearance Modal ── */}
-            {activeModal === "appearance" && (
-              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-                <p style={{ fontSize: 12, color: "#64748b" }}>Choose how the app looks to you.</p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                  {([
-                    { value: "dark",   label: "Dark",   Icon: Moon    },
-                    { value: "light",  label: "Light",  Icon: Sun     },
-                    { value: "system", label: "System", Icon: Monitor },
-                  ] as const).map(({ value, label, Icon }) => (
-                    <button
-                      key={value}
-                      onClick={() => setAppearance(value)}
-                      style={{
-                        padding: "16px 10px", borderRadius: 12, border: `2px solid ${appearance === value ? "#E50914" : "#2A2A2A"}`,
-                        background: appearance === value ? "#1A0305" : "#1A1A1A",
-                        cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-                        transition: "all 0.15s", boxShadow: appearance === value ? "0 0 12px rgba(229,9,20,0.2)" : "none",
-                      }}
-                    >
-                      <Icon style={{ width: 22, height: 22, color: appearance === value ? "#E50914" : "#475569" }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: appearance === value ? "#f1f5f9" : "#64748b" }}>{label}</span>
-                    </button>
-                  ))}
-                </div>
-                <div style={{ padding: "12px 14px", background: "#1A1A1A", border: "1px solid #2A2A2A", borderRadius: 10 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>Active theme</p>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {[["#0A0A0A", "Background"], ["#121212", "Card"], ["#E50914", "Accent Red"], ["#FF3B3B", "Highlight"]].map(([color, label]) => (
-                      <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ width: 16, height: 16, borderRadius: 4, background: color, border: "1px solid #2A2A2A", flexShrink: 0 }} />
-                        <span style={{ fontSize: 10, color: "#475569" }}>{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <button onClick={clearModal} style={{ padding: "10px 0", background: "#E50914", border: "1px solid #B20710", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  Apply
-                </button>
-              </div>
-            )}
-
-            {/* ── Permissions Modal ── */}
-            {activeModal === "permissions" && (
-              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-                <div style={{ padding: "12px 14px", background: "#022c22", border: "1px solid #065f46", borderRadius: 10, display: "flex", gap: 10, alignItems: "flex-start" }}>
-                  <Shield style={{ width: 16, height: 16, color: "#34d399", flexShrink: 0, marginTop: 1 }} />
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "#34d399" }}>Your current role: {role === "ADMIN" ? "Administrator" : "Member"}</p>
-                    <p style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>Roles are assigned by the system administrator.</p>
-                  </div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Your Permissions</p>
-                  {[
-                    { icon: Users,   label: "Manage Members",     allowed: role === "ADMIN" },
-                    { icon: Eye,     label: "View All Projects",   allowed: true },
-                    { icon: Shield,  label: "Delete Projects",     allowed: role === "ADMIN" },
-                    { icon: KeyRound,label: "Manage Equipment",    allowed: role === "ADMIN" },
-                    { icon: BellRing,label: "Configure Alerts",    allowed: role === "ADMIN" },
-                    { icon: Fingerprint, label: "Manage Roles",   allowed: role === "ADMIN" },
-                  ].map(p => (
-                    <div key={p.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#1A1A1A", borderRadius: 10, border: `1px solid ${p.allowed ? "#065f46" : "#2A2A2A"}` }}>
-                      <p.icon style={{ width: 15, height: 15, color: p.allowed ? "#34d399" : "#333333", flexShrink: 0 }} />
-                      <span style={{ flex: 1, fontSize: 13, color: p.allowed ? "#f1f5f9" : "#475569" }}>{p.label}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: p.allowed ? "#022c22" : "#1A1A1A", color: p.allowed ? "#34d399" : "#333333", border: `1px solid ${p.allowed ? "#065f46" : "#2A2A2A"}` }}>
-                        {p.allowed ? "Allowed" : "Restricted"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={clearModal} style={{ marginTop: 4, padding: "10px 0", background: "#1A1A1A", border: "1px solid #2A2A2A", borderRadius: 10, color: "#94a3b8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  Close
+                <button 
+                  onClick={handleUpdateNotifications} 
+                  disabled={loading}
+                  style={{ marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 0", background: "#E50914", border: "1px solid #B20710", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.7 : 1 }}
+                >
+                  {loading ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : "Save Preferences"}
                 </button>
               </div>
             )}

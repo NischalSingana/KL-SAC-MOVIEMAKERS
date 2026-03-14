@@ -63,7 +63,7 @@ export function RecentActivity() {
         </div>
       </div>
       <div className="space-y-4">
-        {activities.map((activity, index) => (
+        {activities.map((activity) => (
           <div key={activity.id} className="flex items-start gap-4">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${activity.iconBg}`}>
               <activity.icon className={`w-4 h-4 ${activity.iconColor}`} />

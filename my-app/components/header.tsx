@@ -4,6 +4,15 @@ import { useState, useRef, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { BellRing, SlidersHorizontal, Power, BadgeCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+interface Notification {
+  id: string;
+  text: string;
+  type: string;
+  createdAt: string;
+  link?: string;
+}
 
 export function Header() {
   const { data: session } = useSession();
@@ -15,9 +24,62 @@ export function Header() {
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: 'Project "The Last Frame" completed', time: "2 hours ago", icon: BadgeCheck }
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const router = useRouter();
+
+  // Fetch notifications
+  const fetchNotifs = async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.user) {
+      // Small delay for initial fetch to avoid synchronous setState warning
+      const timeout = setTimeout(fetchNotifs, 100);
+      
+      // Poll every 15 seconds for new notifications
+      const interval = setInterval(fetchNotifs, 15000);
+      return () => {
+        clearTimeout(timeout);
+        clearInterval(interval);
+      };
+    }
+  }, [session]);
+
+  const markAllRead = async () => {
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ all: true }),
+      });
+      if (res.ok) {
+        setNotifications([]);
+      }
+    } catch (error) {
+      console.error("Failed to mark all read:", error);
+    }
+  };
+
+  const markRead = async (id: string, url?: string) => {
+    try {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ id }),
+      });
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      if (url) router.push(url);
+    } catch (error) {
+      console.error("Failed to mark read:", error);
+    }
+  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -71,19 +133,27 @@ export function Header() {
               <div style={{ padding: "16px 20px", borderBottom: "1px solid #2A2A2A", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9" }}>Notifications</p>
                 {notifications.length > 0 && (
-                  <button onClick={() => setNotifications([])} style={{ fontSize: 11, fontWeight: 600, color: "#E50914", background: "none", border: "none", cursor: "pointer" }}>Mark all read</button>
+                  <button onClick={markAllRead} style={{ fontSize: 11, fontWeight: 600, color: "#E50914", background: "none", border: "none", cursor: "pointer" }}>Mark all read</button>
                 )}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", padding: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", padding: 8, maxHeight: 400, overflowY: "auto" }}>
                 {notifications.length > 0 ? (
                   notifications.map(n => (
-                    <div key={n.id} style={{ display: "flex", padding: "12px", gap: 12, borderRadius: 10, background: "#1A1A1A", cursor: "pointer" }}>
+                    <div 
+                      key={n.id} 
+                      onClick={() => markRead(n.id, n.link)}
+                      style={{ display: "flex", padding: "12px", gap: 12, borderRadius: 10, background: "#1A1A1A", cursor: "pointer", marginBottom: 4 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#222")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "#1A1A1A")}
+                    >
                       <div style={{ width: 32, height: 32, borderRadius: 8, background: "#261F06", border: "1px solid #665111", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <n.icon style={{ width: 14, height: 14, color: "#FF6B6B" }} />
+                        <BadgeCheck style={{ width: 14, height: 14, color: "#FF6B6B" }} />
                       </div>
                       <div>
                         <p style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9", lineHeight: 1.4 }}>{n.text}</p>
-                        <p style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{n.time}</p>
+                        <p style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                          {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
                       </div>
                     </div>
                   ))
@@ -94,7 +164,7 @@ export function Header() {
                 )}
               </div>
               <div style={{ padding: "12px", borderTop: "1px solid #2A2A2A", textAlign: "center" }}>
-                <Link href="#" style={{ fontSize: 12, fontWeight: 600, color: "#FF6B6B", textDecoration: "none" }}>View all notifications</Link>
+                <Link href="/settings" style={{ fontSize: 12, fontWeight: 600, color: "#FF6B6B", textDecoration: "none" }}>Manage preferences</Link>
               </div>
             </div>
           )}

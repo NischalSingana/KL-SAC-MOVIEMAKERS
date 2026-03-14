@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { action, name, password, newPassword } = await req.json();
+    const { action, name, password, newPassword, borrowAlerts, projectAlerts } = await req.json();
 
     if (action === "updateProfile") {
       if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -37,6 +37,23 @@ export async function PATCH(req: NextRequest) {
       });
       
       return NextResponse.json({ success: true, message: "Password updated successfully" });
+    }
+    
+    if (action === "updateNotifications") {
+      const updated = await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          ...(borrowAlerts !== undefined && { borrowAlerts }),
+          ...(projectAlerts !== undefined && { projectAlerts }),
+        },
+      });
+      return NextResponse.json({
+        success: true,
+        notifications: {
+          borrowAlerts: updated.borrowAlerts,
+          projectAlerts: updated.projectAlerts
+        }
+      });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
