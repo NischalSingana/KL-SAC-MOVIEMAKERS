@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
-import { Lexend } from "next/font/google";
+import { Lexend, Geist } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const lexend = Lexend({
   subsets: ["latin"],
@@ -17,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className={cn("dark", "font-sans", geist.variable)} suppressHydrationWarning>
       <body
         className={`${lexend.variable} antialiased`}
         style={{
