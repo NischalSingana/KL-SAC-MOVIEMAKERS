@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { EventInput, EventApi } from "@fullcalendar/core";
+import { EventInput } from "@fullcalendar/core";
 import { Loader2, CalendarDays, Ticket, Aperture, Hourglass, BadgeCheck, Zap } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +18,19 @@ interface BorrowLog {
   id: string; borrowerName: string; takenAt: string;
   returnedAt: string | null; status: string;
   equipment: { name: string };
+}
+
+interface CalendarEvent {
+  title?: string;
+  url?: string;
+  backgroundColor?: string;
+  bg?: string;
+  extendedProps?: {
+    url?: string;
+    actualStart?: string | null;
+    actualEnd?: string | null;
+    type?: string;
+  };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -41,7 +54,7 @@ export default function CalendarPage() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedEvents, setSelectedEvents] = useState<EventApi[]>([]);
+  const [selectedEvents, setSelectedEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -157,13 +170,29 @@ export default function CalendarPage() {
               events={events}
               height="auto"
               aspectRatio={1.8}
-              dayMaxEvents={3}
-              moreLinkContent={() => `View all`}
+              dayMaxEvents={5}
+              moreLinkContent={(info) => {
+                return <span style={{ color: "#E50914" }}>+ {info.num} more</span>;
+              }}
               moreLinkClick={(info) => {
                 setSelectedDate(info.date);
                 setSelectedEvents(info.allSegs.map(seg => seg.event));
                 setIsModalOpen(true);
                 return "prevent"; 
+              }}
+              dateClick={(info) => {
+                const dateStr = format(info.date, "yyyy-MM-dd");
+                const dayEvents = events.filter(e => {
+                  const eventStart = typeof e.start === 'string' ? e.start.split('T')[0] : "";
+                  const eventEnd = typeof e.end === 'string' ? e.end.split('T')[0] : eventStart;
+                  return dateStr >= eventStart && dateStr <= eventEnd;
+                });
+                
+                if (dayEvents.length > 0) {
+                  setSelectedDate(info.date);
+                  setSelectedEvents(dayEvents as CalendarEvent[]);
+                  setIsModalOpen(true);
+                }
               }}
               eventClick={(info) => {
                 if (info.event.url) {
@@ -200,41 +229,108 @@ export default function CalendarPage() {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-[#121212] border border-slate-800 text-slate-100">
-          <DialogHeader className="border-b border-slate-800 pb-4 mb-2">
-            <DialogTitle className="text-xl font-bold flex flex-col gap-1">
-              Events on {selectedDate ? format(selectedDate, "MMMM d, yyyy") : ""}
-              <span className="text-xs font-normal text-slate-400">Review project and equipment logistics</span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-1">
-            {selectedEvents.map((event, idx) => (
-              <div 
-                key={idx} 
-                className="flex items-start gap-3 p-3 rounded-lg border border-slate-800/60 bg-[#1A1A1A] hover:bg-[#222] transition-colors cursor-pointer"
-                onClick={() => {
-                  if (event.url) window.location.href = event.url;
-                }}
-              >
-                <div 
-                  className="w-1.5 h-full rounded-full self-stretch flex-shrink-0" 
-                  style={{ backgroundColor: event.backgroundColor }} 
-                />
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-semibold text-sm truncate">{event.title}</h4>
-                  <div className="flex flex-col gap-1 mt-1.5 text-xs text-slate-400">
-                    <span className="flex items-center gap-1.5">
-                      <CalendarDays className="w-3.5 h-3.5 opacity-70"/> 
-                      Start: {event.extendedProps.actualStart ? format(new Date(event.extendedProps.actualStart), "MMM d, yyyy") : "N/A"}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Hourglass className="w-3.5 h-3.5 opacity-70"/> 
-                      Finish: {event.extendedProps.actualEnd ? format(new Date(event.extendedProps.actualEnd), "MMM d, yyyy") : "N/A"}
-                    </span>
-                  </div>
-                </div>
+        <DialogContent 
+          className="sm:max-w-[450px] p-0 overflow-hidden" 
+          style={{ 
+            background: "#0F0F0F", 
+            border: "1px solid #222", 
+            borderRadius: 20,
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)"
+          }}
+        >
+          {/* Header with Background Accent */}
+          <div style={{ position: "relative", padding: "28px 24px 20px", borderBottom: "1px solid #1A1A1A" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", background: "radial-gradient(circle at 0% 0%, #E5091415, transparent 60%)", pointerEvents: "none" }} />
+            <DialogHeader>
+              <DialogTitle style={{ fontSize: 18, fontWeight: 900, color: "#fff", display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ color: "#E50914", textTransform: "uppercase", fontSize: 11, letterSpacing: "0.15em", fontWeight: 800 }}>Daily Overview</span>
+                {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : ""}
+              </DialogTitle>
+              <p style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>Scheduled productions and logistics for today.</p>
+            </DialogHeader>
+          </div>
+
+          {/* Event List */}
+          <div className="custom-scrollbar" style={{ padding: "16px 20px 24px", display: "flex", flexDirection: "column", gap: 12, maxHeight: "60vh", overflowY: "auto" }}>
+            {selectedEvents.length === 0 ? (
+              <div style={{ padding: "40px 0", textAlign: "center", color: "#333" }}>
+                <CalendarDays style={{ width: 32, height: 32, margin: "0 auto 12px", opacity: 0.2 }} />
+                <p style={{ fontSize: 13, fontWeight: 600 }}>No entries scheduled</p>
               </div>
-            ))}
+            ) : (
+              selectedEvents.map((event, idx) => {
+                const type = event.extendedProps?.type;
+                const isProject = type === "project";
+                const url = event.url || (event.extendedProps?.url);
+                const color = event.backgroundColor || "#E50914";
+                
+                return (
+                  <div 
+                    key={idx} 
+                    onClick={() => { if (url) window.location.href = url; }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.background = "#181818";
+                      (e.currentTarget as HTMLElement).style.borderColor = "#333";
+                      (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.background = "#141414";
+                      (e.currentTarget as HTMLElement).style.borderColor = "#222";
+                      (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+                    }}
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "stretch", 
+                      background: "#141414", 
+                      border: "1px solid #222", 
+                      borderRadius: 14, 
+                      overflow: "hidden",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      cursor: url ? "pointer" : "default"
+                    }}
+                  >
+                    {/* Status Indicator */}
+                    <div style={{ width: 4, background: color, boxShadow: `0 0 10px ${color}40` }} />
+                    
+                    <div style={{ flex: 1, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14 }}>
+                      {/* Icon Container */}
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: isProject ? "#1c0b0b" : "#1a0505", border: `1px solid ${isProject ? "#4b1c1c" : "#3a0a0a"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {isProject ? <Ticket size={18} color="#FF3B3B" /> : <Aperture size={18} color="#ef4444" />}
+                      </div>
+
+                      {/* Info */}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                          <span style={{ fontSize: 9, fontWeight: 800, color: color, textTransform: "uppercase", letterSpacing: "0.05em" }}>{isProject ? "Production" : "Equipment"}</span>
+                        </div>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{event.title}</h4>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#475569" }}>
+                            <CalendarDays size={12} style={{ opacity: 0.6 }} />
+                            {event.extendedProps?.actualStart ? format(new Date(event.extendedProps.actualStart), "MMM d") : "-"}
+                          </div>
+                          <div style={{ width: 4, height: 1, background: "#2A2A2A" }} />
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#475569" }}>
+                            <Hourglass size={12} style={{ opacity: 0.6 }} />
+                            {event.extendedProps?.actualEnd ? format(new Date(event.extendedProps.actualEnd), "MMM d") : "-"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detail Hint */}
+                      {url && (
+                        <div style={{ color: "#2A2A2A", display: "flex", alignItems: "center" }}>
+                          <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginRight: 8, color: "#333" }}>Details</span>
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#E50914" }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -301,6 +397,20 @@ export default function CalendarPage() {
         }
         .dark-calendar .fc .fc-button-group { gap: 4px; display: flex; }
         .dark-calendar .fc .fc-button-group > .fc-button { border-radius: 8px !important; }
+
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #222;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #333;
+        }
       `}</style>
     </div>
   );
