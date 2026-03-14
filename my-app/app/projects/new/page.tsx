@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Ticket, MicVocal,
-  Loader2, AlertCircle, ScrollText, Network, Sparkles, Projector,
+  ArrowLeft, Loader2, AlertCircle, ScrollText, Network, Sparkles,
+  Clapperboard, Video, Music
 } from "lucide-react";
 import { FileUpload } from "@/components/forms/file-upload";
 import { TeamMemberFields, TeamMemberRow } from "@/components/forms/team-member-fields";
@@ -76,11 +76,34 @@ export default function NewProjectPage() {
     finally { setLoading(false); }
   };
 
-  // Type option cards
   const typeOpts = [
-    { value: "SHORT_FILM", label: "Short Film", icon: Ticket,   color: "#FF6B6B", bg: "#261F06", border: "#665111" },
-    { value: "DOCUMENTARY", label: "Documentary", icon: Projector, color: "#34d399", bg: "#022c22", border: "#065f46" },
-    { value: "COVER_SONG", label: "Cover Song", icon: MicVocal, color: "#f472b6", bg: "#500724", border: "#9d174d" },
+    { 
+      value: "SHORT_FILM", 
+      label: "Short Film", 
+      sub: "Narrative cinema",
+      icon: Clapperboard,   
+      color: "#FF3B3B", 
+      bg: "#1a0b0b", 
+      border: "#4b1c1c" 
+    },
+    { 
+      value: "DOCUMENTARY", 
+      label: "Documentary", 
+      sub: "Real life stories",
+      icon: Video, 
+      color: "#3b82f6", 
+      bg: "#0c1a2e", 
+      border: "#1e3a8a" 
+    },
+    { 
+      value: "COVER_SONG", 
+      label: "Cover Song", 
+      sub: "Musical covers",
+      icon: Music, 
+      color: "#a855f7", 
+      bg: "#1a0e2e", 
+      border: "#581c87" 
+    },
   ];
 
   // Empty status opts since computing dynamically
@@ -116,7 +139,7 @@ export default function NewProjectPage() {
         )}
 
         {/* ── Project Details ── */}
-        <SectionCard icon={Ticket} iconColor="#FF6B6B" iconBg="#261F06" title="Project Details">
+        <SectionCard icon={Clapperboard} iconColor="#FF3B3B" iconBg="#1a0b0b" title="Project Details">
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
             {/* Title */}
@@ -137,28 +160,54 @@ export default function NewProjectPage() {
             {/* Type — card selector */}
             <div>
               <label style={LS}>Project Type</label>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                 {typeOpts.map(o => (
                   <button
                     key={o.value} type="button"
                     onClick={() => set("type", o.value)}
+                    onMouseEnter={e => {
+                      if (form.type !== o.value) {
+                        e.currentTarget.style.borderColor = o.border;
+                        e.currentTarget.style.background = "#121212";
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (form.type !== o.value) {
+                        e.currentTarget.style.borderColor = "#2A2A2A";
+                        e.currentTarget.style.background = "#0A0A0A";
+                      }
+                    }}
                     style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
-                      borderRadius: 10, cursor: "pointer", textAlign: "left",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 14px",
+                      borderRadius: 14, cursor: "pointer", textAlign: "center",
                       background: form.type === o.value ? o.bg : "#0A0A0A",
                       border: `1.5px solid ${form.type === o.value ? o.border : "#2A2A2A"}`,
-                      transition: "all 0.15s",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      position: "relative",
+                      overflow: "hidden"
                     }}
                   >
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: `${o.color}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <o.icon style={{ width: 15, height: 15, color: o.color }} />
+                    {form.type === o.value && (
+                      <div style={{ 
+                        position: "absolute", top: 0, left: 0, width: "100%", height: "100%", 
+                        background: `radial-gradient(circle at top right, ${o.color}15, transparent 70%)`,
+                        pointerEvents: "none"
+                      }} />
+                    )}
+                    <div style={{ 
+                      width: 44, height: 44, borderRadius: 12, 
+                      background: form.type === o.value ? `${o.color}25` : "#121212", 
+                      display: "flex", alignItems: "center", justifyContent: "center", 
+                      flexShrink: 0,
+                      transition: "all 0.2s",
+                      boxShadow: form.type === o.value ? `0 0 15px ${o.color}20` : "none"
+                    }}>
+                      <o.icon style={{ width: 22, height: 22, color: form.type === o.value ? o.color : "#475569" }} />
                     </div>
                     <div>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: form.type === o.value ? o.color : "#64748b" }}>{o.label}</p>
+                      <p style={{ fontSize: 13, fontWeight: 800, color: form.type === o.value ? "#f1f5f9" : "#475569", marginBottom: 2 }}>{o.label}</p>
+                      <p style={{ fontSize: 10, color: "#333333", fontWeight: 500, lineHeight: 1.2 }}>{o.sub}</p>
                     </div>
-                    {form.type === o.value && (
-                      <div style={{ marginLeft: "auto", width: 8, height: 8, borderRadius: "50%", background: o.color, boxShadow: `0 0 8px ${o.color}` }} />
-                    )}
                   </button>
                 ))}
               </div>

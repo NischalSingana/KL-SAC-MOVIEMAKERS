@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Ticket, MicVocal, Plus, ScanSearch, ExternalLink, Network, Hourglass, BadgeCheck, Zap, Loader2, Download, Projector } from "lucide-react";
+import { Plus, ScanSearch, ExternalLink, Network, Hourglass, BadgeCheck, Zap, Loader2, Download, Clapperboard, Video, Music } from "lucide-react";
 
 interface Project {
   id: string;
@@ -23,9 +23,9 @@ const STATUS: Record<string, { label: string; color: string; bg: string; border:
 };
 
 const TYPE: Record<string, { label: string; color: string; bg: string; Icon: React.ElementType }> = {
-  SHORT_FILM: { label: "Short Film", color: "#FF6B6B", bg: "#261F06", Icon: Ticket   },
-  DOCUMENTARY: { label: "Documentary", color: "#34d399", bg: "#022c22", Icon: Projector },
-  COVER_SONG: { label: "Cover Song", color: "#f472b6", bg: "#500724", Icon: MicVocal },
+  SHORT_FILM: { label: "Short Film", color: "#FF3B3B", bg: "#1a0b0b", Icon: Clapperboard },
+  DOCUMENTARY: { label: "Documentary", color: "#3b82f6", bg: "#0c1a2e", Icon: Video },
+  COVER_SONG: { label: "Cover Song", color: "#a855f7", bg: "#1a0e2e", Icon: Music },
 };
 
 function fmt(d: string | null) {
@@ -160,7 +160,7 @@ export default function ProjectsPage() {
         ) : filtered.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 0", gap: 10 }}>
             <div style={{ width: 52, height: 52, borderRadius: 14, background: "#1A1A1A", border: "1px solid #2A2A2A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Ticket style={{ width: 24, height: 24, color: "#2A2A2A" }} />
+              <Clapperboard style={{ width: 24, height: 24, color: "#2A2A2A" }} />
             </div>
             <p style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9" }}>No projects found</p>
             <p style={{ fontSize: 12, color: "#333333" }}>{search ? "Try a different search" : "Create your first project"}</p>
