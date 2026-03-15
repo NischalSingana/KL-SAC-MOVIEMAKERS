@@ -1,15 +1,15 @@
-// Quick DB + R2 connectivity test
-// Run from: /Users/nischalsingana/DEV/KL-SAC-MOVIEMAKERS/my-app
-// node test-connections.mjs
-
 import { neon } from "@neondatabase/serverless";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { config } from "dotenv";
 
-const DATABASE_URL = "REDACTED_DATABASE_URL";
-const R2_ACCOUNT_ID = "REDACTED_ACCOUNT_ID";
-const R2_ACCESS_KEY_ID = "REDACTED_ACCESS_KEY_ID";
-const R2_SECRET_ACCESS_KEY = "REDACTED_SECRET_ACCESS_KEY";
-const R2_BUCKET_NAME = "klsacmoviemakers";
+// Load environment variables from .env.local
+config({ path: ".env.local" });
+
+const DATABASE_URL = process.env.DATABASE_URL;
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
 
 // ── Test 1: Neon DB ──────────────────────────────────────────
 console.log("\n🔵 Testing Neon DB connection...");
